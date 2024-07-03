@@ -1,2 +1,2 @@
 # bilibililxzy.github.io
-umm...
+umm... I've been ricked by MCSFXG QAQ
