@@ -1,0 +1,1279 @@
+<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html;charset=utf-8"/>
+		<title>Tetris</title>
+		<style type="text/css">
+			.basic{
+				height:20px;
+				width:20px;
+				background-color:#DBDBDB;
+				float:left;
+				margin:1px;
+			}
+			.row{
+				height:20px;
+				clear:both;
+			}
+		</style>
+	</head>
+	
+	<body>
+		<div id="main">
+			<div id="pool" style="float:left;"></div>
+			<div id="nextOne" style="float:left;"></div>
+			<div id="sample" class="basic" style='opacity: 0;clear:right;'></div>
+			<div style="float:left;width:60px;">score: 
+				<span id='score' style="font-size:200%;font-weight:bold;"></span>
+				level: 
+				<span id='level' style="font-size:200%;font-weight:bold;"></span>
+			</div>
+			<div style="float:left;width:60px;"> 
+				<button id='go'>Start/Restart</button>
+			</div>
+		<div>
+		
+		<script type="text/javascript" >
+		
+			var tetris = {
+				alive:true,
+				init:function(){
+					this.view.loadBackground();
+					this.model.initAllFourBlockTemplate();
+					
+					this.reset();
+					
+					var self = this;
+					
+					document.addEventListener('keydown', function(event){
+						self.controller.listenKeyDown4UpDownLeftRight(event, self);
+					});
+					
+					document.getElementById('go').addEventListener("click", function(){ 
+						if(true){
+							self.reset();
+							
+							self.controller.updateTimer(self.model.level2ScoreAndInterval[self.model.level - 1][1], self);
+						}
+					});
+					
+					this.controller.startTimer(this);
+					
+					this.view.refreshAll(this.model);
+					
+				},
+				reset:function(){
+					this.model.initAccumulatedBlocks(tetris.view);
+					this.model.fallingBlock = this.model.generateFourBlock(this.view);
+					this.model.prepareBlock = this.model.generateFourBlock(this.view);
+					this.model.centerFourBlock(this.view, this.model.fallingBlock);
+					
+					this.alive = true;
+					
+					this.model.score = 0;
+					this.model.level = 1;
+					this.model.nextScoreLine = this.model.level2ScoreAndInterval[this.model.level][0];
+					
+					document.removeEventListener('keydown',this.controller.alertGameOver);
+				},
+				view:{
+					rowNum:25,
+					colNum:17,
+					zoneTwoRowNum:4,
+					zoneTwoColNum:4,
+					loadBackground:function(){
+						var pool = document.getElementById("pool");
+						var sample = document.getElementById("sample");
+						var nextOne = document.getElementById("nextOne");
+						
+						var margin = 2;
+						var dotWidth = parseFloat(sample.offsetWidth) + margin;//基本方块宽度 + margin
+						
+						function calcWidth(cNum){
+							return (cNum * (dotWidth + margin));
+						}
+						
+						var poolWidth = calcWidth(this.colNum) + 'px';
+						var	nextOneWidth = calcWidth(4) + 'px';
+						pool.style.width = poolWidth;
+						nextOne.style.width = nextOneWidth;
+						
+						function createBlocks(rNum, idPrefix, cNum, rowWidth, context){
+							for(var i = 0; i < rNum; i++){//
+								//创建行
+								var rDiv = document.createElement("div");
+								rDiv.setAttribute('id',idPrefix + 'r' + i);//
+								rDiv.setAttribute('class','row');
+								
+								for(var j = 0; j < cNum; j++){//
+									var cDiv = document.createElement("div");
+									cDiv.setAttribute('id', idPrefix + 'c' + j + '_r' + i);//
+									cDiv.setAttribute('class','basic');
+									rDiv.appendChild(cDiv);
+								}
+								rDiv.setAttribute('width', rowWidth);//
+								context.appendChild(rDiv);
+							}
+						}
+						
+						createBlocks(this.rowNum, '', this.colNum, poolWidth, pool);
+						createBlocks(this.zoneTwoRowNum, 'n', this.zoneTwoColNum, nextOneWidth, nextOne);
+						
+						document.getElementById("main").style.width 
+							= parseFloat(poolWidth) + parseFloat(nextOneWidth) + 'px';
+						
+					},
+					colour:['#DBDBDB','#56A36C','#EFCEE8',
+						'#81C2D6','#8192D6','#D9B3E6',
+						'#DCF7A1','#83FCD8','#E8F2FF',
+						'#91C6FF','#B8F788','#58D2E8',
+						'#F2B6B6','#E8ED51','#FFE3FB',
+						'#E8FF8C','#FFDEC9','#F5A433',
+						'#E6109B','#96C4E6','#E560CD'],
+					refreshScore:function(score){
+						document.getElementById('score').innerHTML = score;
+					},
+					refreshLevel:function(level){
+						document.getElementById('level').innerHTML = level;
+					},
+					refreshZoneOne:function(accumulatedBlocks, fallingBlock){
+						//显示 积累块组
+						for(var i = 0; i < accumulatedBlocks.length; i++){
+							for(var j = 0; j < accumulatedBlocks[i].length; j++){
+								document.getElementById('c' + j + '_r' + i).style.backgroundColor 
+									= this.colour[accumulatedBlocks[i][j]];
+							}
+						}
+						
+						//显示下降块
+						for(var i = 0; i < fallingBlock.coordinateGroup.length; i++){
+							var x = fallingBlock.coordinateGroup[i][0];
+							var y = fallingBlock.coordinateGroup[i][1];
+							
+							if(y >= 0){
+								document.getElementById('c' + x + '_r' + y).style.backgroundColor 
+									= this.colour[fallingBlock.colorIndex];
+							}
+						}
+						
+					},
+					refreshZoneTwo:function(fourBlock){
+						for(var i = 0; i < this.zoneTwoRowNum; i++){
+							for(var j = 0; j < this.zoneTwoColNum; j++){
+								document.getElementById('nc' + i + '_r' + j).style.backgroundColor = this.colour[0];
+							}
+						}
+						
+						for(var k = 0 ; k < fourBlock.coordinateGroup.length; k++){
+							if(fourBlock.coordinateGroup[k][1] >= 0){
+								document.getElementById('nc' + fourBlock.coordinateGroup[k][0] + '_r' + fourBlock.coordinateGroup[k][1]).style.backgroundColor = this.colour[fourBlock.colorIndex];
+							}
+						}
+					},
+					refreshAll:function(model){
+						this.refreshLevel(model.level);
+						this.refreshScore(model.score);
+						this.refreshZoneOne(model.accumulatedBlocks, model.fallingBlock);
+						this.refreshZoneTwo(model.prepareBlock);
+					},
+					clear:function(){//
+						var pool = document.getElementById("pool");
+						var nextOne = document.getElementById("nextOne");
+						
+						while (pool.hasChildNodes()) {
+							pool.removeChild(pool.childNodes[0]);
+						}			
+						
+						while(nextOne.hasChildNodes()) {
+							nextOne.removeChild(nextOne.childNodes[0]);
+						}
+					}
+				},
+				model:{
+					score:0,
+					level:1,
+					nextScoreLine:0,
+					accumulatedBlocks:[],//容器内堆积的块 的属性[colorIndex...]
+					initAccumulatedBlocks:function(view){
+						var result = [];
+						
+						for(var i = 0; i< view.rowNum; i++){
+							var tmp = [];//y
+							
+							for(var j = 0; j < view.colNum; j++){
+								tmp.push(0);//x
+							}
+							
+							result.push(tmp);
+						}
+						
+						this.accumulatedBlocks = result;
+					},
+					basicFourBlockTemplates:[
+						{
+							coordinateGroup:[[1,2],[2,2],[1,3],[2,3]],
+							type:'T1',
+							state:'A',
+						},
+						{
+							coordinateGroup:[[0,3],[1,3],[2,3],[3,3]],
+							type:'T2',
+							state:'A'
+						},//
+						{
+							coordinateGroup:[[1,2],[2,1],[2,2],[2,3]],
+							type:'T3',
+							state:'A'
+						},
+						{
+							coordinateGroup:[[0,3],[1,2],[1,3],[2,2]],
+							type:'T4',
+							state:'A'
+						},
+						{
+							coordinateGroup:[[0,2],[1,2],[1,3],[2,3]],
+							type:'T5',
+							state:'A'
+						},
+						{
+							coordinateGroup:[[1,1],[1,2],[1,3],[2,1]],
+							type:'T6',
+							state:'A'
+						},
+						{
+							coordinateGroup:[[1,1],[2,1],[2,2],[2,3]],
+							type:'T7',
+							state:'A'
+						}
+					],
+					fourBlockTemplates:[],
+					initAllFourBlockTemplate:function(){
+						var frequencyArray = [0, 2, 4, 2, 2, 4, 4];
+						
+						for(var i = 0; i < frequencyArray.length; i++){
+							//Ti
+							this.fourBlockTemplates.push(this.basicFourBlockTemplates[i]);
+							
+							for(var f = 0; f < frequencyArray[i] - 1; f++){
+								var tmp = this.fourBlockTemplates[this.fourBlockTemplates.length - 1];
+								var tmp2 = this.createNewFourBlockTemplateByRotating90DegreesClockwise(tmp);
+								
+								this.fourBlockTemplates.push(tmp2);
+							}
+						}
+
+					},
+					createNewFourBlockTemplate:function(coordinateGroup_, state_, type_){
+						return {coordinateGroup:coordinateGroup_, type:type_, state:state_};
+					},
+					createNewFourBlockTemplateByRotating90DegreesClockwise:function(fourBlock){//用于初始化四连块模板
+						var rotatedOne = this.rotate90DegreesClockwise(fourBlock.coordinateGroup, fourBlock.type, fourBlock.state);
+						
+						var result = rotatedOne.coordinateGroup;
+						switch(fourBlock.type){
+							case 'T1':break;
+							case 'T2':
+								if(fourBlock.state == 'A'){
+									return this.createNewFourBlockTemplate(result, 'B', fourBlock.type);
+								}					
+								break;
+							case 'T3':
+								if(fourBlock.state == 'A'){
+									return this.createNewFourBlockTemplate(result, 'B', fourBlock.type);
+								}
+								if(fourBlock.state == 'B'){
+									return this.createNewFourBlockTemplate(result, 'C', fourBlock.type);
+								}
+								if(fourBlock.state == 'C'){
+									return this.createNewFourBlockTemplate(result, 'D', fourBlock.type);
+								}
+								break;
+							case 'T4':
+								if(fourBlock.state == 'A'){
+									return this.createNewFourBlockTemplate(result, 'B', fourBlock.type);
+								}
+								break;
+							case 'T5':
+								if(fourBlock.state == 'A'){
+									return this.createNewFourBlockTemplate(result, 'B', fourBlock.type);
+								}
+								break;
+							case 'T6':
+								if(fourBlock.state == 'A'){
+									return this.createNewFourBlockTemplate(result, 'B', fourBlock.type);
+								}
+								if(fourBlock.state == 'B'){
+									return this.createNewFourBlockTemplate(result, 'C', fourBlock.type);
+								}
+								if(fourBlock.state == 'C'){
+									return this.createNewFourBlockTemplate(result, 'D', fourBlock.type);
+								}
+								break;
+							case 'T7':
+								if(fourBlock.state == 'A'){
+									return this.createNewFourBlockTemplate(result, 'B', fourBlock.type);
+								}
+								
+								if(fourBlock.state == 'B'){
+									return this.createNewFourBlockTemplate(result, 'C', fourBlock.type);
+								}
+								
+								if(fourBlock.state == 'C'){
+									return this.createNewFourBlockTemplate(result, 'D', fourBlock.type);
+								}
+								break;
+							default:break;
+						}
+					},
+					rotate90DegreesClockwise:function(coordinateGroup, type, state){//按上键 旋转 四连块
+						var result = type == 'T1'?coordinateGroup:this.copyTwoDimensionalIntegerArray(coordinateGroup);
+						switch(type){
+							case 'T1':break;
+							case 'T2':
+								if(state == 'A'){
+									this.moveLeftestBlock(result, 3, -3);
+									this.moveLeftestBlock(result, 2, -2);
+									this.moveLeftestBlock(result, 1, -1);
+									state = 'B';
+									
+								}else if(state == 'B'){
+									this.moveTopestBlock(result, -3, 3);
+									this.moveTopestBlock(result, -2, 2);
+									this.moveTopestBlock(result, -1, 1);
+									state = 'A';
+									
+								}
+								break;
+							case 'T3':
+								if(state == 'A'){
+									this.moveLeftestBlock(result, 0, 1);
+									this.moveTopestBlock(result, 1, 2);
+									state = 'B';
+									
+								}else if(state == 'B'){
+									this.moveLeftestBlock(result, 1, -2);
+									this.moveRightestBlock(result, 0, -1);
+									state = 'C';
+									
+								}else if(state == 'C'){
+									this.moveTopestBlock(result, -1, 1);
+									state = 'D';
+									
+								}else if(state == 'D'){
+									this.moveRightestBlock(result, -1, -1);
+									state = 'A';
+									
+								}
+								break;
+							case 'T4':
+								if(state == 'A'){
+									this.moveLeftestBlock(result, 1, -2);
+									this.moveBottomestBlock(result, 1, 0);
+									state = 'B';
+									
+								}else if(state == 'B'){
+									this.moveBottomestBlock(result, -1, 0);
+									this.moveTopestBlock(result, -1, 2);
+									state = 'A';
+									
+								}
+								
+								break;
+							case 'T5':
+								if(state == 'A'){
+									this.moveRightestBlock(result, 0, -2);
+									this.moveLeftestBlock(result, 2, 0);
+									state = 'B';
+									
+								}else if(state == 'B'){
+									this.moveTopestBlock(result, -2, 1);
+									this.moveRightestBlock(result, 0, 1);
+									state = 'A';
+									
+								}
+								
+								break;
+							case 'T6':
+								if(state == 'A'){
+									this.moveBottomestBlock(result, -1, -1);
+									this.moveRightestBlock(result, 0, 2);
+									this.moveTopestBlock(result, 1, 1);
+									state = 'B';
+									
+								}else if(state == 'B'){
+									this.moveLeftestBlock(result, 2, -1);
+									this.moveLeftestBlock(result, 0, 1);
+									state = 'C';
+									
+								}else if(state == 'C'){
+									this.moveTopestBlock(result, 1, 2);
+									this.moveTopestBlock(result, -1, 0);
+									state = 'D';
+									
+								}else if(state == 'D'){
+									this.moveRightestBlock(result, -2, -2);
+									this.moveRightestBlock(result, 0, -2);
+									state = 'A';
+									
+								}
+								
+								break;
+							case 'T7':
+								if(state == 'A'){
+									this.moveLeftestBlock(result, 0, 2);
+									this.moveTopestBlock(result, -2, 2);
+									state = 'B';
+									
+								}else if(state == 'B'){
+									this.moveTopestBlock(result, -1, 0);
+									this.moveLeftestBlock(result, 1, -2);
+									state = 'C';
+									
+								}else if(state == 'C'){
+									this.moveRightestBlock(result, 0, -1);
+									this.moveTopestBlock(result, 2, 1);
+									state = 'D';
+									
+								}else if(state == 'D'){
+									this.moveBottomestBlock(result, 1, 0);
+									this.moveLeftestBlock(result, 0, -1);
+									this.moveRightestBlock(result, -1, -1);
+									state = 'A';
+									
+								}
+								break;
+							default:break;
+						}
+						
+						return {"coordinateGroup":result,"state":state};
+					},
+					moveTopestBlock:function(coordinateGroup, xOffset, yOffset){
+						var top = this.getTopestBlock(coordinateGroup);
+						this.replace(coordinateGroup, top, [top[0] + xOffset, top[1] + yOffset]);
+					},
+					moveBottomestBlock:function(coordinateGroup, xOffset, yOffset){
+						var bottom = this.getBottomestBlock(coordinateGroup);
+						this.replace(coordinateGroup, bottom, [bottom[0] + xOffset, bottom[1] + yOffset]);
+					},
+					moveLeftestBlock:function(coordinateGroup, xOffset, yOffset){
+						var left = this.getLeftestBlock(coordinateGroup);
+						this.replace(coordinateGroup, left, [left[0] + xOffset, left[1] + yOffset]);
+					},
+					moveRightestBlock:function(coordinateGroup, xOffset, yOffset){
+						var right = this.getRightestBlock(coordinateGroup);
+						this.replace(coordinateGroup, right, [right[0] + xOffset, right[1] + yOffset]);
+					},
+					getLeftestBlock:function(coordinateGroup){
+						//x值最小
+						var tmp = coordinateGroup[0];
+						for(var i = 0 ; i < coordinateGroup.length; i++){
+							if(coordinateGroup[i][0] < tmp[0]){
+								tmp = coordinateGroup[i];
+							}
+						}
+						//console.log("leftest: " + tmp);
+						return tmp;//返回最后得到
+					},
+					getRightestBlock:function(coordinateGroup){
+						//x值最大
+						var tmp = coordinateGroup[0];
+						for(var i = 0 ; i < coordinateGroup.length; i++){
+							if(coordinateGroup[i][0] > tmp[0]){
+								tmp = coordinateGroup[i];
+							}
+						}
+						//console.log("rightest: " + tmp);
+						return tmp;//返回最先找到
+					},
+					getTopestBlock:function(coordinateGroup){
+						//y值最小
+						var tmp = coordinateGroup[0];
+						for(var i = 0 ; i < coordinateGroup.length; i++){
+							if(coordinateGroup[i][1] < tmp[1]){
+								tmp = coordinateGroup[i];
+							}
+						}
+						//console.log("topest: " + tmp);
+						return tmp;//返回最后得到
+					},
+					getBottomestBlock:function(coordinateGroup){
+						var tmp = coordinateGroup[0];
+						for(var i = 0 ; i < coordinateGroup.length; i++){
+							if(coordinateGroup[i][1] > tmp[1]){
+								tmp = coordinateGroup[i];
+							}
+						}
+						//console.log("bottomest: " + tmp);
+						return tmp;//返回最先找到
+					},
+					replace:function(coordinateGroup, A, B){//coordinateGroup replace A with B
+						for(var i = 0 ; i < coordinateGroup.length; i++){
+							if(coordinateGroup[i][0] == A[0] 
+								&& coordinateGroup[i][1] == A[1]){
+								coordinateGroup[i] = B;
+								break;
+							}
+						}
+					},
+					copyTwoDimensionalIntegerArray:function(coordinateGroup){
+						var result = [];
+						for(var i = 0 ; i < coordinateGroup.length; i++){
+							var tmp = [];
+							for(var j = 0 ; j < coordinateGroup[i].length; j++){
+								tmp[tmp.length] = coordinateGroup[i][j];
+							}
+							result[result.length] = tmp;
+						}
+						return result;
+					},
+					generateFourBlock:function(view, templateIndex){
+					
+						if(!templateIndex){
+							templateIndex = this.makeRandomInteger(this.fourBlockTemplates.length)
+						}
+						var template = this.fourBlockTemplates[templateIndex];
+						var index = this.makeRandomInteger(view.colour.length);
+						
+						while(index == 0){
+							index = this.makeRandomInteger(view.colour.length);
+						}
+						
+						return {coordinateGroup:this.copyTwoDimensionalIntegerArray(template.coordinateGroup),
+								type : template.type,
+								state : template.state,
+								colorIndex : index};
+					},
+					makeRandomInteger:function(scope){
+						return Math.floor(Math.random() * scope);
+					},
+					fallingBlock:{},//最开始的时候y为负数
+					prepareBlock:{},//预备下降块
+					checkIfAccumulatedBlocksContain:function(coordinate, view){
+						if(coordinate[0] < 0 || coordinate[1] < 0) 
+							return false;
+						if(coordinate[0] >= view.colNum || coordinate[1] >= view.rowNum) 
+							return false;
+						return this.accumulatedBlocks[coordinate[1]][coordinate[0]] != 0;
+					},
+					checkIfOverstepping:function(coordinate, view){
+						if(coordinate[0] < 0) 
+							return true;
+						if(coordinate[0] >= view.colNum || coordinate[1] >= view.rowNum) 
+							return true;
+						return false;
+					},
+					canFourBlockMove:function(fourBlock, direction, tetris_){
+						var copyOne = fourBlock.coordinateGroup;
+						
+						var DIRECTION = tetris_.controller.DIRECTION;
+						var view = tetris_.view;
+						
+						//若下一步碰壁，
+						if(direction == DIRECTION.LEFT){
+							for(var i = 0;i < copyOne.length;i++){
+								if(copyOne[i][0] - 1 < 0){
+									return false;
+								}
+								
+								//检查 与 积累块 是否有碰撞
+								if(this.checkIfAccumulatedBlocksContain([copyOne[i][0] - 1,copyOne[i][1]],view)){
+									return false;
+								}
+							}
+						}
+							
+						if(direction == DIRECTION.RIGHT){
+							for(var i = 0;i < copyOne.length;i++){
+								if(copyOne[i][0] + 1 >= view.colNum){
+									return false;
+								}
+								if(this.checkIfAccumulatedBlocksContain([copyOne[i][0] + 1,copyOne[i][1]],view)){
+									return false;
+								}
+							}
+						}
+						
+						if(direction == DIRECTION.DOWN){
+							for(var i = 0;i < copyOne.length;i++){
+								if(copyOne[i][1] + 1 > view.rowNum){
+									return false;
+								}
+							}
+						}
+						
+						//旋转
+						if(direction == DIRECTION.UP){
+							copyOne = this.rotate90DegreesClockwise(
+								fourBlock.coordinateGroup,
+								fourBlock.type,
+								fourBlock.state);
+							
+							//尝试矫正
+							//this.correctFourBlockAfterRotate(copyOne, type, tetris_);
+							this.correctFourBlockAfterRotate2(fourBlock.type, fourBlock.coordinateGroup, copyOne.coordinateGroup, view);
+							
+							//console.log(copyOne.coordinateGroup);
+							
+							//尝试矫正后还是碰 左右壁 或  积累块组 ,return false;
+							for(var i = 0; i < copyOne.coordinateGroup.length; i++){
+								
+								var condition = this.checkIfOverstepping(copyOne.coordinateGroup[i], view)
+									|| this.checkIfAccumulatedBlocksContain(copyOne.coordinateGroup[i], view);
+								
+								if(condition){
+									return false;
+								}
+							}
+						}
+						return true;
+					},
+					//旋转尝试矫正
+					correctFourBlockAfterRotate2:function(type, coordinateGroupBefore, coordinateGroupAfter, view){
+						var touchedBlocks = [];
+						for(var i = 0; i < coordinateGroupAfter.length; i++){
+						
+							if(this.checkIfAccumulatedBlocksContain(coordinateGroupAfter[i], view)
+									|| this.checkIfOverstepping(coordinateGroupAfter[i], view)){
+								touchedBlocks[touchedBlocks.length] = coordinateGroupAfter[i];
+							}
+						}
+						
+						if(touchedBlocks.length != 0){
+							var sameBlocks = this.findSameBlocks(coordinateGroupBefore, coordinateGroupAfter);
+							var direction = touchedBlocks[0][0] - sameBlocks[0][0];
+							
+							//碰撞块在左边，还是在右边，对应矫正+1，-1
+							direction = (direction < 0 ? 1 : (direction > 0 ? -1 : 0));
+							
+							this.tryToMove(type, coordinateGroupAfter, direction, view);
+						}
+						
+					},
+					tryToMove:function(type, coordinateGroupAfter, direction, view){
+						var j = 0;
+						var limit = (type == 'T2'? 3 : 1);//T2 直线四连块 
+						//最多3次
+						while(j < limit && direction != 0){
+							for(var i = 0; i < coordinateGroupAfter.length; i++){
+								coordinateGroupAfter[i][0] += (direction);//direction 值为 -1 or 1
+							}
+							
+							var stillTouched = false;
+							
+							for(var i = 0; i < coordinateGroupAfter.length; i++){
+							
+								if(this.checkIfAccumulatedBlocksContain(coordinateGroupAfter[i], view)
+									|| this.checkIfOverstepping(coordinateGroupAfter[i], view)){
+									stillTouched = true;
+									break;
+								}
+							}
+							
+							if(!stillTouched){
+								break;
+							}
+							
+							j++;
+						}
+					
+					},
+					findSameBlocks:function(coordinateGroupBefore, coordinateGroupAfter){
+						var result = [];
+						
+						 for(var i = 0; i < coordinateGroupAfter.length; i++){
+							var existed = false;
+						
+							for(var j = 0;j < coordinateGroupBefore.length; j++){						
+								if(coordinateGroupAfter[i][0] == coordinateGroupBefore[j][0]
+									&& coordinateGroupAfter[i][1] == coordinateGroupBefore[j][1]){
+									existed = true;
+									break;
+								}
+							}
+							
+							if(existed){
+								result[result.length] = 
+									[coordinateGroupAfter[i][0], coordinateGroupAfter[i][1]];
+							}
+						}
+						
+						return result;
+					},
+					moveFourBlockOneStep:function(fourBlock, direction, tetris_){
+						//考虑是不是将该函数移到controller
+						var DIRECTION = tetris_.controller.DIRECTION;
+
+						if(direction == DIRECTION.LEFT){
+							for(var i = 0;i < fourBlock.coordinateGroup.length; i++){
+								fourBlock.coordinateGroup[i][0]--;
+							}
+						}
+						
+						if(direction == DIRECTION.RIGHT){
+							for(var i = 0;i < fourBlock.coordinateGroup.length; i++){
+								fourBlock.coordinateGroup[i][0]++;
+							}
+						}
+
+						if(direction == DIRECTION.DOWN){
+							for(var i = 0;i < fourBlock.coordinateGroup.length; i++){
+								fourBlock.coordinateGroup[i][1]++;
+							}
+						}
+					},
+					checkFallingBlockTouchBaseLineOrAccumulatedBlocks:function(view){
+						//检测 降落位下一位是否 碰到底线
+						for(var i = 0; i < this.fallingBlock.coordinateGroup.length; i++){
+							
+							var x = this.fallingBlock.coordinateGroup[i][0];
+							var y = this.fallingBlock.coordinateGroup[i][1]
+							
+							if(y + 1 == view.rowNum){
+								return true;
+							}
+							
+							if(this.checkIfAccumulatedBlocksContain([x, y+1], view)){
+								return true;
+							}
+						}	
+
+						return false;
+					},
+					//前提条件checkTouchBaseLineOrAccumulatedBlocks
+					addFallingBlockToAccumulatedBlocks:function(fallingBlock, tetris_){
+						
+						//为 满行 作准备
+						var rows = [];
+						
+						for(var i = 0; i < fallingBlock.coordinateGroup.length; i++){
+							
+							var row  = fallingBlock.coordinateGroup[i][1];
+							
+							if(row < 0) continue;
+							
+							var existed = false;
+							for(var r = 0; r < rows.length; r++){
+								if(rows[r] == row){
+									existed = true;
+								}
+							}
+							
+							if(!existed){
+								rows.push(row);
+							}
+							
+							var col = fallingBlock.coordinateGroup[i][0];
+							
+							this.accumulatedBlocks[row][col] = fallingBlock.colorIndex;
+						}
+						
+						//计分
+						//检测满行(只需检查下降块的对应y)
+						//降序
+						rows.sort(function(a,b){return a-b});
+						
+						var fullCount = 0;
+						
+						//行满格进行消除
+						for(var i = 0;i < rows.length; i++){
+							var r = rows[i];
+							//console.log(r)
+							var isFull = this.checkRowFull(this.accumulatedBlocks[r]);
+							//console.log(isFull)
+							if(isFull){
+								for(var j = 0; j < this.accumulatedBlocks[r].length; j++){//中间的j换成i会造成死循环，害得我要暴力重启几次
+									this.accumulatedBlocks[r][j] = 0;
+								}
+								
+								while(r > 0){
+									var isLastRowEmpty = this.checkRowEmpty(this.accumulatedBlocks[r - 1]);
+									
+									if(!isLastRowEmpty){
+										//前一行交换
+										var tmp = this.accumulatedBlocks[r];
+										this.accumulatedBlocks[r] = this.accumulatedBlocks[r - 1];
+										this.accumulatedBlocks[r - 1] = tmp;
+									}else{
+										break;//如果有一行已经是空就没必要换下去
+									}	
+									r--;
+								}
+
+								fullCount++;
+							}
+						}
+						
+						this.addScore(fullCount, tetris_);
+						
+					},
+					addScore:function(fullCount, tetris_){
+						var append = fullCount * tetris_.view.colNum * this.level * 10;
+						
+						//一点一点相加
+						while(append > 0){
+							this.score += (append >= 10 ? 10 : append);
+							
+							//检查升级
+							if(this.score >= this.nextScoreLine){
+								
+								this.level++;
+								
+								if(!this.level2ScoreAndInterval[this.level]){
+									this.nextScoreLine = Number.MAX_VALUE;
+								}else{
+									this.nextScoreLine = this.level2ScoreAndInterval[this.level][0];
+									//升级后加快四连块速度
+									tetris_.controller.updateTimer(this.level2ScoreAndInterval[this.level - 1][1], tetris_);
+								}
+							}
+							append -= 10;
+						}
+						
+					},
+					checkRowFull:function(array){//行 满块后 消失
+						var isFull = true;
+						for(var i = 0;i < array.length;i++){
+							if(array[i] == 0){
+								isFull = false;
+								break;
+							}
+						}
+						return isFull;
+					},
+					checkRowEmpty:function(array){
+						var isEmpty = true;
+						for(var i = 0;i < array.length;i++){
+							if(array[i] != 0){
+								isEmpty = false;
+								break;
+							}
+						}
+						return isEmpty;
+					},
+					centerFourBlock:function(view, fallingBlock){
+						//居中降落
+						var offset = Math.floor(view.colNum / 2 - this.makeRandomInteger(2));
+						
+						for(var i = 0; i < fallingBlock.coordinateGroup.length; i++){
+							fallingBlock.coordinateGroup[i][0] += offset;
+							fallingBlock.coordinateGroup[i][1] -= (view.zoneTwoRowNum - 1);//垂直方向
+						}
+					},
+					makeFallingBlocksFallDirectly:function(view){
+						var map = {};
+						
+						for(var i = 0 ;i < this.fallingBlock.coordinateGroup.length;i++){
+							var x = this.fallingBlock.coordinateGroup[i][0];
+							var y = this.fallingBlock.coordinateGroup[i][1];
+							
+							var z = map[x];
+							if(!z){
+								map[x] = y;
+							}else{
+								map[x] = Math.max(y, z);
+							}
+						}
+						
+						var distance = [];
+						
+						for(var key in map){
+							//console.log("==> "+ key + ", " + map[key]);
+							
+							var disc = 0;
+							
+							var x = key;
+							var y = map[key];
+							
+							while(true){
+								if(this.checkIfAccumulatedBlocksContain([x, y + disc + 1], view)
+									|| y + disc + 1 == view.rowNum){
+									break;
+								}
+								disc++;
+							}
+							
+							distance[distance.length] = disc;
+							//console.log("disc: " + disc);
+						}
+						
+						distance.sort(function(a, b){return a-b});//最好指定函数参数，不填的话有时降序，有时升序
+						var step = distance[0];
+						//console.log("最小距离是：" + step);
+						
+						for(var i = 0 ;i < this.fallingBlock.coordinateGroup.length;i++){
+							this.fallingBlock.coordinateGroup[i][1] += step;
+						}
+
+					},
+					copyFourBlock:function(fourBlock){
+						return {coordinateGroup:this.copyTwoDimensionalIntegerArray(fourBlock.coordinateGroup),
+							type:fourBlock.type,
+							state:fourBlock.state,
+							colorIndex:fourBlock.colorIndex
+						};
+					},
+					level2ScoreAndInterval:[//level is index + 1
+						[0,1000],
+						[1000,700],
+						[5000,500],
+						[10000,300],
+						[20000,200]
+					]
+				},
+				controller:{
+					DIRECTION:{
+						LEFT:37,
+						RIGHT:39,
+						UP:38,
+						DOWN:40
+					},
+					listenKeyDown4UpDownLeftRight:function(event, tetris_){
+						if(!tetris_.alive) return;
+						
+						var keycode = event.keyCode;
+						
+						var view = tetris_.view;
+						var model = tetris_.model;
+						
+						if(keycode == 68){ //D键 直接下降
+							
+							model.makeFallingBlocksFallDirectly(view);
+							
+							//将fallingBlock变成为accumulateBlocks
+							this.makeFallingBlocksJoinAccumlatedBlocksAndCheckDeath(tetris_);
+							if(tetris_.alive){
+								model.moveFourBlockOneStep(model.fallingBlock, this.DIRECTION.DOWN, tetris_);
+							}
+						}
+						if(keycode == 19){
+                                                    this.reset();
+							
+						    this.controller.updateTimer(this.model.level2ScoreAndInterval[this.model.level - 1][1], this);
+                                                }
+						if(keycode >= 37 && keycode <= 40){
+							//console.log(keycode);
+							event.preventDefault();
+							switch(keycode){
+								case this.DIRECTION.LEFT://左
+									if(!model.canFourBlockMove(model.fallingBlock, this.DIRECTION.LEFT, tetris_)) return;
+									model.moveFourBlockOneStep(model.fallingBlock, this.DIRECTION.LEFT, tetris_);
+								
+									break;
+								case this.DIRECTION.UP://上
+
+									if(!model.canFourBlockMove(model.fallingBlock, this.DIRECTION.UP, tetris_)) 
+										return;								
+									
+									var rotatedOne = model.rotate90DegreesClockwise(
+										model.fallingBlock.coordinateGroup,
+										model.fallingBlock.type,
+										model.fallingBlock.state
+									);
+									
+									model.correctFourBlockAfterRotate2(model.fallingBlock.type
+										, model.fallingBlock.coordinateGroup
+										, rotatedOne.coordinateGroup, view);
+									//只对左右壁碰撞作出矫正，需要作出改正
+									//console.log("===>"+rotatedOne.coordinateGroup);
+									model.fallingBlock.coordinateGroup = rotatedOne.coordinateGroup;
+									model.fallingBlock.state = rotatedOne.state;
+									
+									break;
+								case this.DIRECTION.RIGHT://右
+									if(!model.canFourBlockMove(model.fallingBlock, this.DIRECTION.RIGHT, tetris_)) return;
+									model.moveFourBlockOneStep(model.fallingBlock, this.DIRECTION.RIGHT, tetris_);
+								
+									break;
+								case this.DIRECTION.DOWN://下
+									if(model.checkFallingBlockTouchBaseLineOrAccumulatedBlocks(view)){
+										this.makeFallingBlocksJoinAccumlatedBlocksAndCheckDeath(tetris_);
+									}
+									if(tetris_.alive){
+										model.moveFourBlockOneStep(model.fallingBlock, this.DIRECTION.DOWN, tetris_);
+									}
+									break;
+								default:break;
+							}
+						}
+						//刷新界面					
+						view.refreshAll(model);
+					},
+					makeFallingBlocksJoinAccumlatedBlocksAndCheckDeath:function(tetris_){
+						if(!tetris_.alive) return;
+						
+						var model = tetris_.model;
+						var view  = tetris_.view;
+						
+						model.addFallingBlockToAccumulatedBlocks(model.fallingBlock, tetris_);
+											
+						model.fallingBlock = model.prepareBlock;
+						
+						model.prepareBlock = model.generateFourBlock(view);
+						model.centerFourBlock(view, model.fallingBlock);
+						
+						if(model.checkFallingBlockTouchBaseLineOrAccumulatedBlocks(view)){
+							tetris_.alive = false;
+							this.alertGameOver();
+							document.addEventListener('keydown', this.alertGameOver);
+						}
+					},
+					alertGameOver:function(){
+						alert('Game Over!');
+					},
+					startTimer:function(tetris_){
+						
+						//全局变量
+						startBasicStep = window.setInterval(function(){
+							//console.log(this)//返回window对象
+							if(tetris_.alive){
+								tetris_.controller.makeFallingBlocksFallOneStepAndRefreshView(tetris_);
+							}
+						}, tetris_.model.level2ScoreAndInterval[tetris_.model.level - 1][1]);
+					},
+					updateTimer:function(newInterval, tetris_){
+						window.clearInterval(startBasicStep);
+						
+						console.log("Interval: " + newInterval);
+						
+						startBasicStep = window.setInterval(function(){
+							//console.log(this)//返回window对象
+							if(tetris_.alive){
+								tetris_.controller.makeFallingBlocksFallOneStepAndRefreshView(tetris_);
+							}
+						}, newInterval);
+					},
+					makeFallingBlocksFallOneStepAndRefreshView:function(tetris_){
+						var model = tetris_.model;
+						var view = tetris_.view;
+						
+						if(model.checkFallingBlockTouchBaseLineOrAccumulatedBlocks(view)){
+							
+							this.makeFallingBlocksJoinAccumlatedBlocksAndCheckDeath(tetris_);
+							
+						}
+						model.moveFourBlockOneStep(model.fallingBlock, this.DIRECTION.DOWN, tetris_);
+						
+						view.refreshAll(model);
+
+					}
+				}
+			};
+			
+			//很难用单元测试做测试的测试
+			/*
+			var forTest = {
+				cursor:0,
+				lastDirection:0,
+				showAllFourBlockTemplate:function(tetris_, colour, direction){//test
+					if(direction){
+						this.changeCursor(tetris, direction);
+					}
+					
+					for(var i = 0; i < tetris_.view.zoneTwoRowNum; i++){
+						for(var j = 0; j < tetris_.view.zoneTwoColNum; j++){
+							document.getElementById('nc' + i + '_r' + j).style.backgroundColor = colour[0];//颜色默认灰色
+						}
+					}
+					
+					console.log("cursor: " + this.cursor);
+					
+					var fourBlock = tetris_.model.fourBlockTemplates[this.cursor];
+					console.log(fourBlock);
+					
+					for(var k = 0 ; k < fourBlock.coordinateGroup.length; k++){
+						document.getElementById('nc' + fourBlock.coordinateGroup[k][0] + '_r' + fourBlock.coordinateGroup[k][1]).style.backgroundColor = colour[1];
+					}
+				},
+				changeCursor:function(tetris_, direction){
+					if(direction == tetris_.controller.DIRECTION.DOWN){
+						if(++this.cursor == tetris_.model.fourBlockTemplates.length){
+							this.cursor = 0;
+						}
+						return;
+					}
+					
+					if(direction == tetris_.controller.DIRECTION.UP){
+						if(--this.cursor < 0){
+							this.cursor = tetris_.model.fourBlockTemplates.length - 1;
+						}					
+					}
+				},
+				listenKeyDown4ShowAllFourBlockTemplate:function(tetris_){
+					var self = this;
+					
+					self.showAllFourBlockTemplate(tetris_, tetris_.view.colour);
+					
+					document.addEventListener('keydown', function(event){
+						event.preventDefault();
+						var keycode = event.keyCode;
+						if(keycode == tetris_.controller.DIRECTION.DOWN){//下
+							self.showAllFourBlockTemplate(tetris_, tetris_.view.colour, keycode);
+						}
+						if(keycode == tetris_.controller.DIRECTION.UP){//上
+							self.showAllFourBlockTemplate(tetris_, tetris_.view.colour, keycode);
+						}
+					});
+				},
+				listenKeyDown4GenerateFourBlock:function(tetris_){
+					var self = this;
+					document.addEventListener('keydown', function(event){
+						var keycode = event.keyCode;
+						if(keycode == tetris_.controller.DIRECTION.DOWN){//下
+							event.preventDefault();
+							tetris_.view.refreshZoneTwo(tetris_.model.generateFourBlock(tetris_.view));
+						}
+					});
+				},
+				listenKeyDown4MoveFourBlock:function(tetris_){
+					tetris_.model.fallingBlock = tetris_.model.generateFourBlock(tetris_.view);
+					tetris_.model.centerFourBlock(tetris_.view, tetris_.model.fallingBlock);
+					tetris_.view.refreshZoneOne(tetris_.model.accumulatedBlocks, tetris_.model.fallingBlock);
+					
+					document.addEventListener('keydown', function(event){
+						if (event.keyCode == 67){//C键换一个4连块
+							event.preventDefault();
+							
+							tetris_.model.fallingBlock = tetris_.model.generateFourBlock(tetris_.view);
+							tetris_.view.refreshZoneOne(tetris_.model.accumulatedBlocks, tetris_.model.fallingBlock)
+						}
+						tetris_.controller.listenKeyDown4UpDownLeftRight(event, tetris_);
+					});
+					
+				},
+				listenKeyDown4Rotate:function(tetris_){
+					tetris_.model.fallingBlock = tetris_.model.generateFourBlock(tetris_.view, 2);
+
+					//确认维度要在view 长宽范围内 rows 20, cols 17
+					tetris_.model.accumulatedBlocks = [[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+													[0,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0],
+													[0,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0],
+													[0,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0],
+													[0,1,1,1,1,1,1,0,0,0,1,1,1,1,1,1,0],
+													[0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0],
+													[0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0],
+													[0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0],
+													[0,1,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0]];
+					
+					tetris_.view.refreshZoneOne(tetris_.model.accumulatedBlocks, tetris_.model.fallingBlock);
+				
+					document.addEventListener('keydown', function(event){
+						if (event.keyCode == 67){//C键换一个4连块
+							event.preventDefault();
+							
+							tetris_.model.fallingBlock = tetris_.model.generateFourBlock(tetris_.view);
+							tetris_.view.refreshZoneOne(tetris_.model.accumulatedBlocks, tetris_.model.fallingBlock)
+						}
+						
+						tetris_.controller.listenKeyDown4UpDownLeftRight(event, tetris_);
+					});
+				
+				},
+				fallingBlock:[],//下降块的记录
+				accumulatedBlocks:[],//记录
+				prepareBlock:[],
+				listenKeyDown4FallDirectly:function(tetris_){
+					tetris_.model.fallingBlock = tetris_.model.generateFourBlock(tetris_.view);
+					tetris_.model.prepareBlock = tetris_.model.generateFourBlock(tetris_.view);
+					
+					tetris_.model.centerFourBlock(tetris_.view, tetris_.model.fallingBlock);
+					tetris_.view.refreshZoneOne(tetris_.model.accumulatedBlocks, tetris_.model.fallingBlock);
+					tetris_.view.refreshZoneTwo(tetris_.model.prepareBlock);
+					
+					var self = this;
+					
+					document.addEventListener('keydown', function(event){
+						
+						//TFIX:撤销不成功,因为是 引用 问题
+						if (event.keyCode == 67 && self.fallingBlock.length != 0){//C键 撤销下降动作
+							console.log('===>I\'m 67');
+							//event.preventDefault();
+							//console.log(tetris_.model.fallingBlock.coordinateGroup);
+							
+							tetris_.model.fallingBlock = self.fallingBlock.pop();
+							tetris_.model.prepareBlock = self.prepareBlock.pop();
+							tetris_.model.accumulatedBlocks = self.accumulatedBlocks.pop();
+							
+							//console.log(tetris_.model.fallingBlock.coordinateGroup);
+							
+							tetris_.view.refreshZoneOne(tetris_.model.accumulatedBlocks, tetris_.model.fallingBlock);
+							tetris_.view.refreshZoneTwo(tetris_.model.prepareBlock);
+							return;
+						}
+						
+						if(event.keyCode >= 37 && event.keyCode <= 40 || event.keyCode == 32){//空格键
+							self.prepareBlock.push(tetris_.model.copyFourBlock(tetris_.model.prepareBlock));
+							self.fallingBlock.push(tetris_.model.copyFourBlock(tetris_.model.fallingBlock));
+							self.accumulatedBlocks.push(tetris_.model.copyTwoDimensionalIntegerArray(tetris_.model.accumulatedBlocks));
+						}
+						
+						tetris_.controller.listenKeyDown4UpDownLeftRight(event, tetris_);
+						
+					});
+				},
+				startGame:function(tetris_){
+					tetris_.model.fallingBlock = tetris_.model.generateFourBlock(tetris_.view);
+					tetris_.model.prepareBlock = tetris_.model.generateFourBlock(tetris_.view);
+					
+					tetris_.model.centerFourBlock(tetris_.view, tetris_.model.fallingBlock);
+					tetris_.view.refreshZoneOne(tetris_.model.accumulatedBlocks, tetris_.model.fallingBlock);
+					tetris_.view.refreshZoneTwo(tetris_.model.prepareBlock);
+					
+					document.addEventListener('keydown', function(event){
+						
+						tetris_.controller.listenKeyDown4UpDownLeftRight(event, tetris_);
+					});
+					tetris_.controller.startTimer(tetris_);
+
+				},
+				updateTimer:function(tetris_){
+					tetris_.model.score = 4999;
+					tetris_.model.level = 2;
+					tetris_.model.accumulatedBlocks[tetris_.model.accumulatedBlocks.length - 1]
+						= [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0];
+				}
+			};*/
+			//总结：面向接口编程，而不是面向具体
+			var developMode = true;
+			
+			//main
+			window.onload = function(){
+				tetris.init();
+				
+				if(!developMode){
+					//console.log('hi');
+					//forTest.listenKeyDown4ShowAllFourBlockTemplate(tetris);//pass test
+					//forTest.listenKeyDown4GenerateFourBlock(tetris);//pass test
+					//forTest.listenKeyDown4MoveFourBlock(tetris);//pass test
+					//forTest.listenKeyDown4Rotate(tetris);//pass test
+					//forTest.listenKeyDown4FallDirectly(tetris);
+					//forTest.startGame(tetris);
+					//window.setInterval(alert("hello"), 1000);//Doesn't work
+					//window.setInterval(function(){console.log('hi! '+ new Date() )},2000);
+					//forTest.updateTimer(tetris);
+				}
+			};
+
+		</script>
+		
+		<!-- 单元测试
+		<script src="assert.js"></script>
+		<script src="testCase.js"></script>
+		-->
+		
+		<!--
+			J.Kwong
+			18-04-26
+		-->
+	</body>
+</html> 
